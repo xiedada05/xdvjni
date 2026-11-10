@@ -1,0 +1,13 @@
+target/
+*.class
+*.so
+.idea/
+.vscode/
+.classpath
+.project
+.settings/
+dependency-reduced-pom.xml
+
+# 本机验证用的 Maven 本地仓库（受 DSH 沙箱限制，~/.m2 只读）
+.mvnrepo/
+prebuilt-natives/

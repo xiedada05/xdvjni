@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.github.xiedada05</groupId>
+  <artifactId>xdvjni</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <name>xdvjni</name>
+  <description>JNI bindings for the tectonic_xdv XDV/SPX parser (Java 17 baseline)</description>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <cargo.target.dir>${project.build.directory}/cargo</cargo.target.dir>
+    <!-- 当前平台 cdylib 文件名（由下面的 OS profiles 覆盖） -->
+    <native.lib.file>libxdvjni.so</native.lib.file>
+    <!-- 可选：预置的其它平台本地库目录（组装全平台 jar 时使用），缺省不存在则跳过 -->
+    <native.prebuilt.dir>${project.basedir}/prebuilt-natives</native.prebuilt.dir>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.10.2</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Java 17 基线；release 属性与显式版本保证跨 JDK 行为一致 -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.11.0</version>
+      </plugin>
+
+      <!-- 编译 native 库（cargo build, release profile；cargo 在三大平台均可运行） -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.5.0</version>
+        <executions>
+          <execution>
+            <id>cargo-build</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>cargo</executable>
+              <arguments>
+                <argument>build</argument>
+                <argument>--release</argument>
+                <argument>--target-dir</argument>
+                <argument>${cargo.target.dir}</argument>
+              </arguments>
+            </configuration>
+          </execution>
+          <!-- 生成 Java 测试使用的 XDV 样本文件 -->
+          <execution>
+            <id>gen-sample</id>
+            <phase>generate-test-resources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>cargo</executable>
+              <arguments>
+                <argument>run</argument>
+                <argument>--release</argument>
+                <argument>--quiet</argument>
+                <argument>--target-dir</argument>
+                <argument>${cargo.target.dir}</argument>
+                <argument>--bin</argument>
+                <argument>gen-sample</argument>
+                <argument>--</argument>
+                <argument>${project.build.directory}/test-classes/sample.xdv</argument>
+              </arguments>
+            </configuration>
+          </execution>
+          <!-- 运行 Rust 单元/集成测试（cargo test） -->
+          <execution>
+            <id>cargo-test</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>cargo</executable>
+              <arguments>
+                <argument>test</argument>
+                <argument>--release</argument>
+                <argument>--target-dir</argument>
+                <argument>${cargo.target.dir}</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- 把 native 库拷进 jar，使产物自包含；
+           ${native.prebuilt.dir} 存在时一并拷入（全平台 jar 组装） -->
+      <plugin>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>copy-native-lib</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <mkdir dir="${project.build.outputDirectory}/xdvjni/native"/>
+                <copy file="${cargo.target.dir}/release/${native.lib.file}"
+                      todir="${project.build.outputDirectory}/xdvjni/native"
+                      failonerror="true" verbose="true"/>
+                <copy todir="${project.build.outputDirectory}/xdvjni/native" failonerror="true">
+                  <fileset dir="${native.prebuilt.dir}" errorOnMissingDir="false"/>
+                </copy>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!-- 平台 → cdylib 文件名（cargo 对当前 host 的默认输出名） -->
+    <profile>
+      <id>os-windows</id>
+      <activation>
+        <os><family>windows</family></os>
+      </activation>
+      <properties>
+        <native.lib.file>xdvjni.dll</native.lib.file>
+      </properties>
+    </profile>
+    <profile>
+      <id>os-macos</id>
+      <activation>
+        <os><family>mac</family></os>
+      </activation>
+      <properties>
+        <native.lib.file>libxdvjni.dylib</native.lib.file>
+      </properties>
+    </profile>
+    <profile>
+      <id>os-unix</id>
+      <activation>
+        <os><family>unix</family></os>
+      </activation>
+      <properties>
+        <native.lib.file>libxdvjni.so</native.lib.file>
+      </properties>
+    </profile>
+  </profiles>
+</project>

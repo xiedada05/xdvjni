@@ -1,0 +1,23 @@
+[package]
+name = "xdvjni"
+version = "0.1.0"
+edition = "2021"
+description = "JNI bindings for the tectonic_xdv XDV/SPX parser"
+license = "MIT"
+
+[lib]
+name = "xdvjni"
+path = "native/src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "gen-sample"
+path = "native/src/bin/gen_sample.rs"
+
+[[test]]
+name = "sample"
+path = "native/tests/sample_test.rs"
+
+[dependencies]
+jni = "0.22"
+tectonic_xdv = "0.3"
