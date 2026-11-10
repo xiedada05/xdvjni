@@ -118,6 +118,13 @@
             </goals>
             <configuration>
               <target>
+                <condition property="native.lib.file" value="xdvjni.dll">
+                  <os family="windows"/>
+                </condition>
+                <condition property="native.lib.file" value="libxdvjni.dylib">
+                  <os family="mac"/>
+                </condition>
+                <property name="native.lib.file" value="libxdvjni.so"/>
                 <mkdir dir="${project.build.outputDirectory}/xdvjni/native"/>
                 <copy file="${cargo.target.dir}/release/${native.lib.file}"
                       todir="${project.build.outputDirectory}/xdvjni/native"
@@ -138,34 +145,4 @@
     </plugins>
   </build>
 
-  <profiles>
-    <!-- 平台 → cdylib 文件名（cargo 对当前 host 的默认输出名） -->
-    <profile>
-      <id>os-windows</id>
-      <activation>
-        <os><family>windows</family></os>
-      </activation>
-      <properties>
-        <native.lib.file>xdvjni.dll</native.lib.file>
-      </properties>
-    </profile>
-    <profile>
-      <id>os-macos</id>
-      <activation>
-        <os><family>mac</family></os>
-      </activation>
-      <properties>
-        <native.lib.file>libxdvjni.dylib</native.lib.file>
-      </properties>
-    </profile>
-    <profile>
-      <id>os-unix</id>
-      <activation>
-        <os><family>unix</family></os>
-      </activation>
-      <properties>
-        <native.lib.file>libxdvjni.so</native.lib.file>
-      </properties>
-    </profile>
-  </profiles>
 </project>

@@ -212,8 +212,8 @@ chars font=6: [88] all_ascii_printable=true
 ## 跨平台构建
 
 构建脚本本身是跨平台的：cargo 在三大平台输出各自的 cdylib
-（`libxdvjni.so` / `libxdvjni.dylib` / `xdvjni.dll`），pom 通过 OS profiles
-自动选择当前平台的库名并拷入 jar。在目标平台执行同一条命令即可：
+（`libxdvjni.so` / `libxdvjni.dylib` / `xdvjni.dll`），构建期用 Ant 的 os
+条件自动选择当前平台的库名并拷入 jar。在目标平台执行同一条命令即可：
 
 ```bash
 mvn verify        # Linux/macOS/Windows 通用（需 Rust 工具链 + JDK 17+）
