@@ -16,8 +16,6 @@
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <cargo.target.dir>${project.build.directory}/cargo</cargo.target.dir>
-    <!-- 当前平台 cdylib 文件名（由下面的 OS profiles 覆盖） -->
-    <native.lib.file>libxdvjni.so</native.lib.file>
     <!-- 可选：预置的其它平台本地库目录（组装全平台 jar 时使用），缺省不存在则跳过 -->
     <native.prebuilt.dir>${project.basedir}/prebuilt-natives</native.prebuilt.dir>
   </properties>
