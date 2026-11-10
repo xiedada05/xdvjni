@@ -248,7 +248,8 @@ class XdvBindingTest {
             } finally {
                 System.setOut(original);
             }
-            actual = captured.toString(StandardCharsets.UTF_8);
+            // Windows 上 println 产生 \r\n，对比前归一化行尾
+            actual = captured.toString(StandardCharsets.UTF_8).replace("\r\n", "\n");
 
             String expected =
                     "file type: XDV\n"
