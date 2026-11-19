@@ -64,10 +64,40 @@ public interface XdvEvents {
     /**
      * 一段连续排版的字符（由 {@code eop}、字体切换或其它命令触发 flush）。
      *
+     * <p>{@code chars} 是 TeX 字符码：legacy TFM 字体为编码槽位号（通常
+     * 0–255），native 字体在未启用字形输出时为 Unicode 码点。
+     * {@code xs}/{@code ys} 是每个字符被放置时的绝对坐标（已加当前点 h/v），
+     * 与 {@link #handleGlyphRun} 同语义。legacy 字体的水平推进需要调用方通过
+     * {@link XdvParser#setCharWidths} 注入 TFM 宽度；未注入时同一 run 内所有
+     * {@code x} 相同（解析器不移动当前点，与 0.1.x 行为一致）。
+     *
      * @param fontNum 当前字体编号
-     * @param chars   字符编码（TeX 字符码，不是 Unicode）
+     * @param chars   字符编码（槽位号或 Unicode 码点）
+     * @param xs      每个字符的绝对水平坐标
+     * @param ys      每个字符的绝对垂直坐标
      */
-    default void handleCharRun(int fontNum, int[] chars) {
+    default void handleCharRun(int fontNum, int[] chars, int[] xs, int[] ys) {
+    }
+
+    /**
+     * 定义 legacy（TFM）字体——XDV opcode 243–246（native 字体走 opcode 252，
+     * 见 {@link #handleDefineNativeFont}）。
+     *
+     * <p>上游 tectonic_xdv 只解析不转发这类定义；xdvjni 0.2.0 起将其转发给
+     * 本回调。字段均为 u32，以 Java {@code int} 位模式传递（见类注释）。
+     * 收到本回调后，调用方应尽快通过 {@link XdvParser#setCharWidths} 注入
+     * 该字体的字符宽度表（TFM fixword × scaleFactor / 2^20，DVI 单位），
+     * 使后续 {@link #handleCharRun} 携带正确的坐标与推进。
+     *
+     * @param area        字体目录（可空字符串）
+     * @param name        字体名（TFM 基名，如 "pplr8t"）
+     * @param fontNum     字体编号
+     * @param checksum    TFM 校验和（u32 位模式；0 表示未提供）
+     * @param scaledSize  排版尺寸 scale factor（DVI 单位）
+     * @param designSize  设计尺寸（DVI 单位）
+     */
+    default void handleDefineFont(
+            String area, String name, int fontNum, int checksum, int scaledSize, int designSize) {
     }
 
     /**

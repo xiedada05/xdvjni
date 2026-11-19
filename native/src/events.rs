@@ -8,7 +8,7 @@ use jni::refs::Global;
 use jni::signature::{Primitive, ReturnType};
 use jni::vm::{AttachConfig, AttachmentExceptionPolicy};
 use jni::{Env, JValue, jni_sig, jni_str};
-use tectonic_xdv::{FileType, XdvError, XdvEvents};
+use crate::xdv::{FileType, XdvError, XdvEvents};
 
 use crate::cache::{self, JniCache};
 
@@ -201,16 +201,57 @@ impl XdvEvents for JavaEvents {
         })
     }
 
-    fn handle_char_run(&mut self, font_num: i32, chars: &[i32]) -> Result<(), Self::Error> {
+    fn handle_char_run(
+        &mut self,
+        font_num: i32,
+        chars: &[i32],
+        xs: &[i32],
+        ys: &[i32],
+    ) -> Result<(), Self::Error> {
         self.dispatch(|env, cache| {
             let chars = int_array(env, chars)?;
+            let xs = int_array(env, xs)?;
+            let ys = int_array(env, ys)?;
             let chars: JObject = chars.into();
+            let xs: JObject = xs.into();
+            let ys: JObject = ys.into();
             self.call_void(
                 env,
                 cache.handle_char_run,
                 &[
                     JValue::Int(font_num).as_jni(),
                     JValue::Object(&chars).as_jni(),
+                    JValue::Object(&xs).as_jni(),
+                    JValue::Object(&ys).as_jni(),
+                ],
+            )
+        })
+    }
+
+    fn handle_define_font(
+        &mut self,
+        area: &str,
+        name: &str,
+        font_num: i32,
+        checksum: u32,
+        scale_factor: u32,
+        design_size: u32,
+    ) -> Result<(), Self::Error> {
+        self.dispatch(|env, cache| {
+            let area = env.new_string(area)?;
+            let name = env.new_string(name)?;
+            let area: JObject = area.into();
+            let name: JObject = name.into();
+            self.call_void(
+                env,
+                cache.handle_define_font,
+                &[
+                    JValue::Object(&area).as_jni(),
+                    JValue::Object(&name).as_jni(),
+                    JValue::Int(font_num).as_jni(),
+                    JValue::Int(checksum as i32).as_jni(),
+                    JValue::Int(scale_factor as i32).as_jni(),
+                    JValue::Int(design_size as i32).as_jni(),
                 ],
             )
         })

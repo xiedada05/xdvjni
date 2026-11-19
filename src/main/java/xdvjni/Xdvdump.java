@@ -148,7 +148,7 @@ public final class Xdvdump {
         }
 
         @Override
-        public void handleCharRun(int fontNum, int[] chars) {
+        public void handleCharRun(int fontNum, int[] chars, int[] xs, int[] ys) {
             boolean allAsciiPrintable = true;
             for (int c : chars) {
                 if (c <= 0x20 || c >= 0x7F) {
@@ -161,8 +161,29 @@ public final class Xdvdump {
                             + fontNum
                             + ": "
                             + Arrays.toString(chars)
+                            + " (@ "
+                            + Arrays.toString(xs)
+                            + ", "
+                            + Arrays.toString(ys)
+                            + ")"
                             + " all_ascii_printable="
                             + allAsciiPrintable);
+        }
+
+        @Override
+        public void handleDefineFont(
+                String area, String name, int fontNum, int checksum, int scaledSize, int designSize) {
+            System.out.println(
+                    "define font: `"
+                            + (area.isEmpty() ? name : area + "/" + name)
+                            + "` num="
+                            + fontNum
+                            + " checksum="
+                            + Integer.toUnsignedString(checksum)
+                            + " scale="
+                            + Integer.toUnsignedString(scaledSize)
+                            + " design="
+                            + Integer.toUnsignedString(designSize));
         }
 
         @Override

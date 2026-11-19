@@ -6,11 +6,11 @@
 
   <groupId>com.github.xiedada05</groupId>
   <artifactId>xdvjni</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
   <packaging>jar</packaging>
 
   <name>xdvjni</name>
-  <description>JNI bindings for the tectonic_xdv XDV/SPX parser (Java 17 baseline)</description>
+  <description>JNI bindings for the XDV/SPX parser with legacy font support (vendored tectonic_xdv)</description>
 
   <properties>
     <maven.compiler.release>17</maven.compiler.release>

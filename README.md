@@ -27,7 +27,7 @@ mvn install
 <dependency>
   <groupId>com.github.xiedada05</groupId>
   <artifactId>xdvjni</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
@@ -106,7 +106,7 @@ try (InputStream in = Files.newInputStream(Path.of("doc.xdv"));
 
 ```bash
 mvn -q package
-java -cp target/xdvjni-0.1.0.jar xdvjni.Xdvdump doc.xdv
+java -cp target/xdvjni-0.2.0.jar xdvjni.Xdvdump doc.xdv
 ```
 
 输出格式对齐 Tectonic 官方 Rust 示例 `crates/xdv/examples/xdvdump.rs`：
@@ -147,7 +147,7 @@ chars font=6: [88] all_ascii_printable=true
 | `XdvParser.isFinished()` | — | `finish()` 之后为 `true` |
 | `XdvParser.finish()` | `XdvParser::finish` | 断言流已正常结束 |
 | `XdvParser.close()` | Rust 侧 `Drop` | 幂等释放 native 句柄 |
-| `XdvEvents` | `XdvEvents` trait | 8 个回调，均有空实现（与 trait 默认实现一致） |
+| `XdvEvents` | `XdvEvents` trait | 9 个回调，均有空实现（与 trait 默认实现一致） |
 | `FileType` | `FileType` | `XDV` / `SPX` |
 | `XdvException` | `XdvError` | 运行时异常，消息含字节偏移 |
 
@@ -158,13 +158,15 @@ chars font=6: [88] all_ascii_printable=true
 | `handleHeader(FileType, byte[])` | `comment` 保持原始字节，是否为 UTF-8 由调用方判断 |
 | `handleBeginPage(int[] counters, int previousBop)` | 10 个 TeX 页计数器；首页 `previousBop == -1` |
 | `handleSpecial(int x, int y, byte[] contents)` | `\special` 的内容与位置 |
-| `handleCharRun(int fontNum, int[] chars)` | TeX 字符码（不是 Unicode），由 `eop`/换字体等触发 flush |
+| `handleCharRun(int fontNum, int[] chars, int[] xs, int[] ys)` | TeX 字符码（TFM 字体为槽位号、native 字体为 Unicode 码点）与每字符**绝对**坐标（未注入宽度时同一 run 内 x 相同）；由 `eop`/换字体等触发 flush |
+| `handleDefineFont(String area, String name, int fontNum, int checksum, int scaledSize, int designSize)` | legacy（TFM）字体定义（XDV 243–246；上游 tectonic_xdv 只解析不转发，xdvjni 0.2.0 起转发）。`checksum/scaledSize/designSize` 为 u32 位模式。收到后应通过 `XdvParser.setCharWidths(fontNum, long[])` 注入 TFM 宽度（fixword × scaledSize / 2²⁰，DVI 单位），使后续 char run 携带正确坐标 |
 | `handleGlyphRun(int fontNum, char[] glyphs, int[] x, int[] y)` | 字形 ID 与**绝对**坐标（已加当前点） |
 | `handleTextAndGlyphs(int fontNum, String text, int width, char[] glyphs, int[] x, int[] y)` | 文本 + 字形；`text` 由 UTF-16 解码 |
 | `handleDefineNativeFont(String name, int fontNum, int size, int faceIndex, Integer colorRgba, Integer extend, Integer slant, Integer embolden)` | 4 个可选项未置标志位时为 `null` |
 | `handleRule(int x, int y, int height, int width)` | `set_rule` / `put_rule` 都走这里 |
 
-**无符号字段**：Rust 的 `u32`（`faceIndex` 与 4 个可选的字体参数）以 Java `int` 的
+**无符号字段**：Rust 的 `u32`（`faceIndex`、4 个可选的字体参数与 `handleDefineFont`
+的 3 个度量字段）以 Java `int` 的
 位模式传递，可能为负；需要无符号值时用
 `Integer.toUnsignedLong(x)` / `Integer.toUnsignedString(x)` 读取
 （例如 `0xFF8051A0` 会以 `-8367712` 传入，无符号即 `4286599584`）。
@@ -195,6 +197,15 @@ chars font=6: [88] all_ascii_printable=true
 - 不要在回调里重入同一个解析器。
 - 回调参数中的数组/字符串都是为本次事件新建的副本，可自由保存。
 - `close()` 幂等；忘记 `close()` 时由 `java.lang.ref.Cleaner` 兜底释放 native 句柄。
+
+## 版本
+
+- **0.2.0**：vendor `tectonic_xdv` 0.3.0（MIT，1466 行）为 crate 内模块并扩展——
+  legacy `fnt_def` 转发（`handleDefineFont`）、char run 携带逐字符坐标、
+  `XdvParser.setCharWidths` TFM 宽度注入（legacy `set_char` 按注入宽度推进当前点，
+  使其后 rule/图元不漂移；未注入时保持 0.1.x 行为）。`handleCharRun` 签名变更为
+  携带 `xs/ys`（破坏性）。
+- **0.1.0**：初始版本，包装 `tectonic_xdv` 0.3.0。
 
 ## 平台与加载
 
@@ -230,8 +241,16 @@ Release，产物命名：
 - `xdvjni-<ver>-windows-x86_64.jar`
 - `xdvjni-<ver>-all.jar`（全平台）
 
-本地手工组装全平台 jar：把各平台 jar 里的 `xdvjni/native/*` 收集到一个目录，
-再以该目录构建：
+本地组装全平台 jar：用仓库根目录的 `assemble-universal.sh`（提取各平台 jar
+的 `xdvjni/native/*` 到临时目录、检查三平台库齐全后以 `-Dnative.prebuilt.dir`
+重建，即上段手工流程的自动化；缺平台会告警）：
+
+```bash
+# 各平台 jar 传进来（也可传目录）；无参数时用 target/xdvjni-<ver>.jar
+./assemble-universal.sh xdvjni-<ver>-linux-x86_64.jar xdvjni-<ver>-macos.jar xdvjni-<ver>-windows-x86_64.jar
+```
+
+仍想手工做：把各平台 jar 里的 `xdvjni/native/*` 收集到一个目录，再以该目录构建：
 
 ```bash
 mkdir prebuilt-natives
@@ -243,6 +262,38 @@ mvn package -Dnative.prebuilt.dir=$PWD/prebuilt-natives
 `Native.java` 运行时按当前 OS 挑选 jar 内匹配的库文件，因此全平台 jar 在三大
 平台均可直接使用。macOS / Windows 的 Rust 侧逻辑与 Linux 完全一致（纯
 `tectonic_xdv` 解析，无平台相关调用），CI 矩阵会持续验证。
+
+### 各平台前置条件速查
+
+| 平台 | 工具链 | 构建命令 |
+|---|---|---|
+| Linux x86_64 / aarch64 | rustup stable + JDK 17+ + Maven | `mvn verify` |
+| macOS arm64 / x86_64 | 同上 | `mvn verify` |
+| Windows x86_64 | 同上（`xdvjni.dll` 由 cargo 原生输出） | `mvn verify` |
+
+### 可选：从 Linux 交叉编译本地库
+
+不想起三台机器时，可只交叉编译 `.so/.dylib/.dll`，收集进一个目录后走上面的
+`assemble-universal.sh` / 手工流程（Maven 的 cargo 步骤只产当前平台库，
+交叉产物需手工放进 `prebuilt-natives`）：
+
+```bash
+# Windows x86_64（需 mingw-w64：apt install mingw-w64，并配置 linker）
+rustup target add x86_64-pc-windows-gnu
+cargo build --release --target x86_64-pc-windows-gnu
+
+# Linux aarch64（需 aarch64 交叉工具链或 zig）
+rustup target add aarch64-unknown-linux-gnu
+cargo build --release --target aarch64-unknown-linux-gnu
+
+# macOS（无官方交叉链；用 cargo-zigbuild + zig 最省事）
+cargo install cargo-zigbuild
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+cargo zigbuild --release --target aarch64-apple-darwin
+cargo zigbuild --release --target x86_64-apple-darwin
+```
+
+产物分别在 `target/<triple>/release/` 下，与主机构建的库合并收集即可。
 
 ## 工程结构
 

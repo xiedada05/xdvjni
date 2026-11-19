@@ -88,6 +88,12 @@ final class Native {
     /** 向流式解析器喂一块数据，返回本块中被消耗的字节数。 */
     static native int nativeParserFeed(long handle, byte[] data, int off, int len);
 
+    /**
+     * 安装一个字体的槽位索引字符宽度表（DVI 单位）；widths 为 null 时移除。
+     * 可在事件回调期间调用（解析器不在回调期间持有宽度表借用）。
+     */
+    static native void nativeParserSetCharWidths(long handle, int fontNum, long[] widths);
+
     /** 断言流正常结束；数据被截断时抛 {@link XdvException}。 */
     static native void nativeParserFinish(long handle);
 

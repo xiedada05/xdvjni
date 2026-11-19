@@ -1,8 +1,8 @@
 [package]
 name = "xdvjni"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "JNI bindings for the tectonic_xdv XDV/SPX parser"
+description = "JNI bindings for the XDV/SPX parser (vendored tectonic_xdv with legacy font support)"
 license = "MIT"
 
 [lib]
@@ -20,4 +20,4 @@ path = "native/tests/sample_test.rs"
 
 [dependencies]
 jni = "0.22"
-tectonic_xdv = "0.3"
+byteorder = "1"

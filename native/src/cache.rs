@@ -21,6 +21,7 @@ pub struct JniCache {
     pub handle_begin_page: JMethodID,
     pub handle_special: JMethodID,
     pub handle_char_run: JMethodID,
+    pub handle_define_font: JMethodID,
     pub handle_glyph_run: JMethodID,
     pub handle_text_and_glyphs: JMethodID,
     pub handle_define_native_font: JMethodID,
@@ -70,7 +71,19 @@ fn build(env: &mut Env<'_>) -> jni::errors::Result<JniCache> {
     let handle_char_run = env.get_method_id(
         &events_class,
         jni_str!("handleCharRun"),
-        jni_sig!((font_num: jint, chars: [jint])),
+        jni_sig!((font_num: jint, chars: [jint], xs: [jint], ys: [jint])),
+    )?;
+    let handle_define_font = env.get_method_id(
+        &events_class,
+        jni_str!("handleDefineFont"),
+        jni_sig!((
+            area: java.lang.String,
+            name: java.lang.String,
+            font_num: jint,
+            checksum: jint,
+            scale_factor: jint,
+            design_size: jint,
+        )),
     )?;
     let handle_glyph_run = env.get_method_id(
         &events_class,
@@ -127,6 +140,7 @@ fn build(env: &mut Env<'_>) -> jni::errors::Result<JniCache> {
         handle_begin_page,
         handle_special,
         handle_char_run,
+        handle_define_font,
         handle_glyph_run,
         handle_text_and_glyphs,
         handle_define_native_font,

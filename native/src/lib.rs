@@ -1,4 +1,5 @@
-//! JNI bindings for the [`tectonic_xdv`] XDV/SPX parser.
+//! JNI bindings for the XDV/SPX parser (vendored in [`xdv`] from
+//! `tectonic_xdv` 0.3.0, with legacy font/char-run patches).
 //!
 //! The native library `libxdvjni` exposes the static methods declared by the
 //! Java class `xdvjni.Native`:
@@ -21,15 +22,32 @@
 mod cache;
 mod events;
 pub mod sample;
+mod xdv;
+
+// Re-export the vendored parser API under the crate root so downstream users
+// (and integration tests) get the same surface that `tectonic_xdv` offered.
+pub use xdv::XdvParser;
+pub use xdv::{FileType, XdvError, XdvEvents};
 
 use events::{BridgeError, JavaEvents};
 use jni::EnvUnowned;
 use jni::errors::ErrorPolicy;
-use jni::objects::{JByteArray, JClass, JObject};
+use jni::objects::{JByteArray, JClass, JLongArray, JObject};
 use jni::strings::JNIString;
 use jni::sys::{jint, jlong};
 use jni::vm::JavaVM;
-use tectonic_xdv::XdvParser;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::Arc;
+
+/// Shared per-font character width tables for legacy TFM fonts: font number →
+/// slot-indexed advance widths in DVI units. Shared between the parser (read
+/// during `set_char`) and the JNI `setCharWidths` entry point (written from
+/// Java, typically from inside a `handleDefineFont` callback — DVI order
+/// guarantees definitions precede their first use, and the parser never holds
+/// a borrow of this cell while dispatching events).
+type CharWidths = Rc<RefCell<HashMap<i32, Arc<Vec<i64>>>>>;
 
 /// Native state behind a Java `xdvjni.XdvParser` handle.
 struct ParserHandle {
@@ -38,6 +56,8 @@ struct ParserHandle {
     /// Byte offset reached when `finish()` consumed the parser. Kept so that
     /// `currentOffset()` remains meaningful after a successful finish.
     final_offset: u64,
+    /// Width tables shared with the parser (same `Rc`, same underlying cell).
+    char_widths: CharWidths,
 }
 
 /// Error policy for native method boundaries: throws `xdvjni.XdvException`
@@ -147,10 +167,14 @@ pub fn native_create_parser<'local>(
         let vm: JavaVM = env.get_java_vm().map_err(BridgeError::Jni)?;
         let events_ref = env.new_global_ref(&events).map_err(BridgeError::Jni)?;
         let parser = XdvParser::new(JavaEvents::new(vm, events_ref));
+        let char_widths: CharWidths = Rc::new(RefCell::new(HashMap::new()));
+        let mut parser = parser;
+        parser.set_char_widths(Rc::clone(&char_widths));
         let handle = Box::new(ParserHandle {
             parser: Some(parser),
             finished: false,
             final_offset: 0,
+            char_widths,
         });
         Ok(Box::into_raw(handle) as jlong)
     })
@@ -182,6 +206,50 @@ pub fn native_parser_feed<'local>(
             cell.finished = true;
         }
         Ok(consumed as jint)
+    })
+    .resolve::<ThrowXdvExAndDefault>()
+}
+
+/// `static native void nativeParserSetCharWidths(long handle, int fontNum, long[] widths)`
+/// — install a slot-indexed character advance width table (DVI units) for one
+/// font number, used by legacy `set_char` handling. `widths[slot]` is the
+/// advance of slot `slot`; out-of-range slots advance by zero. Passing a
+/// `null` array removes the font's table. Safe to call from inside an event
+/// callback: the parser never holds a borrow of the width cell while
+/// dispatching events.
+#[jni::jni_mangle("xdvjni.Native", "nativeParserSetCharWidths")]
+pub fn native_parser_set_char_widths<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    font_num: jint,
+    widths: JLongArray<'local>,
+) {
+    env.with_env(|env| -> Result<(), BridgeError> {
+        // Safety: see `native_parser_feed`.
+        let cell = unsafe { &*parser_handle(handle)? };
+        let table: Option<Arc<Vec<i64>>> = if widths.is_null() {
+            None
+        } else {
+            let n = widths.len(env).map_err(BridgeError::Jni)?;
+            let mut buf = vec![0 as jni::sys::jlong; n];
+            if n > 0 {
+                widths
+                    .get_region(env, 0, &mut buf)
+                    .map_err(BridgeError::Jni)?;
+            }
+            Some(Arc::new(buf))
+        };
+        let mut map = cell.char_widths.borrow_mut();
+        match table {
+            Some(t) => {
+                map.insert(font_num, t);
+            }
+            None => {
+                map.remove(&font_num);
+            }
+        }
+        Ok(())
     })
     .resolve::<ThrowXdvExAndDefault>()
 }

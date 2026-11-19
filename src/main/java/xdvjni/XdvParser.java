@@ -111,6 +111,30 @@ public final class XdvParser implements AutoCloseable {
     }
 
     /**
+     * 注入一个字体的字符宽度表（legacy TFM 字体定位用）。
+     *
+     * <p>{@code widths[slot]} 是槽位 {@code slot} 的字符推进量，单位 DVI
+     * （由 TFM fixword × scaleFactor / 2^20 换算而来；未定义槽位填 0）。
+     * 解析器在处理 {@code set_char} 时按当前字体查表推进当前点，使
+     * {@link XdvEvents#handleCharRun} 携带逐字符坐标、并使其后的 rule/图形
+     * 定位不漂移；越界槽位与未注册字体的字符推进为 0（与 0.1.x 行为一致）。
+     *
+     * <p>典型用法：在 {@link XdvEvents#handleDefineFont} 回调里解析 TFM 后
+     * 就地调用——DVI 保证字体定义先于使用，回调期间注入对后续字符立即生效。
+     * {@code widths == null} 表示移除该字体的表。
+     *
+     * <p>一次性 {@link Xdv#parse} 无句柄，无法注入；需要 legacy 定位的调用方
+     * 请使用流式 {@code XdvParser}。
+     *
+     * @param fontNum 字体编号
+     * @param widths  槽位索引的宽度表（DVI 单位），或 {@code null} 移除
+     * @throws IllegalStateException 解析器已关闭
+     */
+    public void setCharWidths(int fontNum, long[] widths) {
+        Native.nativeParserSetCharWidths(pointer(), fontNum, widths);
+    }
+
+    /**
      * 当前解析到的字节偏移。
      *
      * <p>在 {@link #finish()} 成功后依然可用，返回文件总字节数。

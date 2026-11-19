@@ -42,12 +42,12 @@ class XdvBindingTest {
                     "text num=5 \"Hello\" width=327680 ids=[40, 41]"
                             + " x=[655360, 720896] y=[100, 100]",
                     "rule (983040,100) h=200 w=400",
-                    "chars num=5 [72, 105]",
+                    "chars num=5 [72, 105] x=[983440, 983440] y=[100, 100]",
                     "beginPage [2, 0, 0, 0, 0, 0, 0, 0, 0, 0] prev=28",
                     "font \"NotoSansCJK\" num=6 size=300000 face=2 color=null"
                             + " extend=65536 slant=null embolden=32768",
                     "rule (0,0) h=50 w=50",
-                    "chars num=6 [88]");
+                    "chars num=6 [88] x=[0] y=[0]");
 
     /** 读取 Maven 构建阶段生成的样本文件。 */
     private static byte[] sample() throws IOException {
@@ -262,12 +262,13 @@ class XdvBindingTest {
                             + "text font=5: \"Hello\" width=327680 glyphs=[40, 41]"
                             + " (@ [655360, 720896], [100, 100])\n"
                             + "rule W=400 H=200 @ 983040, 100\n"
-                            + "chars font=5: [72, 105] all_ascii_printable=true\n"
+                            + "chars font=5: [72, 105] (@ [983440, 983440], [100, 100])"
+                            + " all_ascii_printable=true\n"
                             + "new page: [2 0 0 0 0 0 0 0 0 0] 28\n"
                             + "define native font: `NotoSansCJK` num=6 size=300000 faceIndex=2"
                             + " color=None extend=Some(65536) slant=None embolden=Some(32768)\n"
                             + "rule W=50 H=50 @ 0, 0\n"
-                            + "chars font=6: [88] all_ascii_printable=true\n"
+                            + "chars font=6: [88] (@ [0], [0]) all_ascii_printable=true\n"
                             + data.length
                             + " bytes parsed.\n";
 
@@ -318,8 +319,16 @@ class XdvBindingTest {
         }
 
         @Override
-        public void handleCharRun(int fontNum, int[] chars) {
-            events.add("chars num=" + fontNum + " " + Arrays.toString(chars));
+        public void handleCharRun(int fontNum, int[] chars, int[] xs, int[] ys) {
+            events.add(
+                    "chars num="
+                            + fontNum
+                            + " "
+                            + Arrays.toString(chars)
+                            + " x="
+                            + Arrays.toString(xs)
+                            + " y="
+                            + Arrays.toString(ys));
         }
 
         @Override
@@ -416,7 +425,7 @@ class XdvBindingTest {
                     }
 
                     @Override
-                    public void handleCharRun(int fontNum, int[] chars) {
+                    public void handleCharRun(int fontNum, int[] chars, int[] xs, int[] ys) {
                         charRuns.add(chars);
                     }
                 };
